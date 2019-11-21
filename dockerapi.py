@@ -64,11 +64,11 @@ class container_post(Resource):
         print("api call: %s, container_id: %s" % (api_call_method_name, container_id))
         return api_call_method(container_id)
       except Exception as e:
-        print("error - container_post: %s" % str(e))
+        print("error - container_post: %s" % str(e))  
         return jsonify(type='danger', msg=str(e))
 
     else:
-      return jsonify(type='danger', msg='invalid container id or missing action')
+      return jsonify(type='danger', msg='invalid container id or missing action')        
 
 
   # api call: container_post - post_action: stop
@@ -107,7 +107,7 @@ class container_post(Resource):
 
   # api call: container_post - post_action: exec - cmd: mailq - task: delete
   def container_post__exec__mailq__delete(self, container_id):
-    if 'items' in request.json:
+    if 'items' in request.json:  
       r = re.compile("^[0-9a-fA-F]+$")
       filtered_qids = filter(r.match, request.json['items'])
       if filtered_qids:
@@ -121,7 +121,7 @@ class container_post(Resource):
 
   # api call: container_post - post_action: exec - cmd: mailq - task: hold
   def container_post__exec__mailq__hold(self, container_id):
-    if 'items' in request.json:
+    if 'items' in request.json:  
       r = re.compile("^[0-9a-fA-F]+$")
       filtered_qids = filter(r.match, request.json['items'])
       if filtered_qids:
@@ -135,7 +135,7 @@ class container_post(Resource):
 
    # api call: container_post - post_action: exec - cmd: mailq - task: unhold
   def container_post__exec__mailq__unhold(self, container_id):
-    if 'items' in request.json:
+    if 'items' in request.json:  
       r = re.compile("^[0-9a-fA-F]+$")
       filtered_qids = filter(r.match, request.json['items'])
       if filtered_qids:
@@ -149,7 +149,7 @@ class container_post(Resource):
 
   # api call: container_post - post_action: exec - cmd: mailq - task: deliver
   def container_post__exec__mailq__deliver(self, container_id):
-    if 'items' in request.json:
+    if 'items' in request.json:  
       r = re.compile("^[0-9a-fA-F]+$")
       filtered_qids = filter(r.match, request.json['items'])
       if filtered_qids:
@@ -216,19 +216,28 @@ class container_post(Resource):
   # api call: container_post - post_action: exec - cmd: system - task: mysql_upgrade
   def container_post__exec__system__mysql_upgrade(self, container_id):
     for container in docker_client.containers.list(filters={"id": container_id}):
-      cmd = "/usr/bin/mysql_upgrade -uroot -p'" + os.environ['DBROOT'].replace("'", "'\\''") + "'\n"
-      cmd_response = exec_cmd_container(container, cmd, user='mysql')
-
-      matched = False
-      for line in cmd_response.split("\n"):
-        if 'is already upgraded to' in line:
-          matched = True
-      if matched:
-        return jsonify(type='success', msg='mysql_upgrade: already upgraded')
+      sql_return = container.exec_run(["/bin/bash", "-c", "/usr/bin/mysql_upgrade -uroot -p'" + os.environ['DBROOT'].replace("'", "'\\''") + "'\n"], user='mysql')
+      if sql_return.exit_code == 0:
+        matched = False
+        for line in sql_return.output.decode('utf-8').split("\n"):
+          if 'is already upgraded to' in line:
+            matched = True
+        if matched:
+          return jsonify(type='success', msg='mysql_upgrade: already upgraded', text=sql_return.output.decode('utf-8'))
+        else:
+          container.restart()
+          return jsonify(type='warning', msg='mysql_upgrade: upgrade was applied', text=sql_return.output.decode('utf-8'))
       else:
-        container.restart()
-        return jsonify(type='warning', msg='mysql_upgrade: upgrade was applied')
+        return jsonify(type='error', msg='mysql_upgrade: error running command', text=sql_return.output.decode('utf-8'))
 
+  # api call: container_post - post_action: exec - cmd: system - task: mysql_tzinfo_to_sql
+  def container_post__exec__system__mysql_tzinfo_to_sql(self, container_id):
+    for container in docker_client.containers.list(filters={"id": container_id}):
+      sql_return = container.exec_run(["/bin/bash", "-c", "/usr/bin/mysql_tzinfo_to_sql /usr/share/zoneinfo | /bin/sed 's/Local time zone must be set--see zic manual page/FCTY/' | /usr/bin/mysql -uroot -p'" + os.environ['DBROOT'].replace("'", "'\\''") + "' mysql \n"], user='mysql')
+      if sql_return.exit_code == 0:
+        return jsonify(type='info', msg='mysql_tzinfo_to_sql: command completed successfully', text=sql_return.output.decode('utf-8'))
+      else:
+        return jsonify(type='error', msg='mysql_tzinfo_to_sql: error running command', text=sql_return.output.decode('utf-8'))
 
   # api call: container_post - post_action: exec - cmd: reload - task: dovecot
   def container_post__exec__reload__dovecot(self, container_id):
@@ -263,7 +272,7 @@ class container_post(Resource):
   def container_post__exec__sieve__print(self, container_id):
     if 'username' in request.json and 'script_name' in request.json:
       for container in docker_client.containers.list(filters={"id": container_id}):
-        cmd = ["/bin/bash", "-c", "/usr/bin/doveadm sieve get -u '" + request.json['username'].replace("'", "'\\''") + "' '" + request.json['script_name'].replace("'", "'\\''") + "'"]
+        cmd = ["/bin/bash", "-c", "/usr/bin/doveadm sieve get -u '" + request.json['username'].replace("'", "'\\''") + "' '" + request.json['script_name'].replace("'", "'\\''") + "'"]  
         sieve_return = container.exec_run(cmd)
         return exec_run_handler('utf8_text_only', sieve_return)
 
@@ -285,7 +294,7 @@ class container_post(Resource):
       for container in docker_client.containers.list(filters={"id": container_id}):
         cmd = "/usr/bin/rspamadm pw -e -p '" + request.json['raw'].replace("'", "'\\''") + "' 2> /dev/null"
         cmd_response = exec_cmd_container(container, cmd, user="_rspamd")
-
+        
         matched = False
         for line in cmd_response.split("\n"):
           if '$2$' in line:
@@ -305,7 +314,7 @@ class container_post(Resource):
             return jsonify(type='success', msg='command completed successfully')
         else:
             return jsonify(type='danger', msg='command did not complete')
-
+        
 
 def exec_cmd_container(container, cmd, user, timeout=2, shell_cmd="/bin/bash"):
 
@@ -332,7 +341,7 @@ def exec_cmd_container(container, cmd, user, timeout=2, shell_cmd="/bin/bash"):
       except:
         pass
     return ''.join(total_data)
-
+    
   try :
     socket = container.exec_run([shell_cmd], stdin=True, socket=True, user=user).output._sock
     if not cmd.endswith("\n"):
@@ -368,7 +377,7 @@ class GracefulKiller:
 
 def create_self_signed_cert():
     process = subprocess.Popen(
-      "openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout /app/dockerapi_key.pem -out /app/dockerapi_cert.pem -subj /CN=dockerapi/O=openemail -addext subjectAltName=DNS:dockerapi".split(),
+      "openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout /app/dockerapi_key.pem -out /app/dockerapi_cert.pem -subj /CN=dockerapi/O=mailcow -addext subjectAltName=DNS:dockerapi".split(),
       stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell=False
     )
     process.wait()
@@ -397,4 +406,4 @@ if __name__ == '__main__':
     time.sleep(1)
     if killer.kill_now:
       break
-  print ("Stopping dockerapi-openemail")
+  print ("Stopping dockerapi-mailcow")
