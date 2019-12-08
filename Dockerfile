@@ -1,5 +1,5 @@
 FROM alpine:3.10
-LABEL maintainer "Chinthaka Deshapriya <chinthaka@cybergate.lk>"
+LABEL maintainer "Amila Kothalawala <amila@openemail.io>"
 
 WORKDIR /app
 
